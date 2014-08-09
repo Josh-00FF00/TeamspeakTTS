@@ -1,2 +1,2 @@
-cp "bin\Release\x64\tts64.dll" "C:\Program Files\TeamSpeak 3 Client\plugins"
+copy /Y "bin\Release\x64\Text To Speech64.dll" "C:\Program Files\TeamSpeak 3 Client\plugins"
 pause

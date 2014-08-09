@@ -19,17 +19,20 @@
 #include "public_rare_definitions.h"
 #include "ts3_functions.h"
 #include "plugin.h"
+#include "TTS.h"
 
 #include <sapi.h>
 #include <string>
 #include <vector>
+#include <queue>
+#include <thread>
 
 #include <iostream>
 
 using namespace std;
 
 static struct TS3Functions ts3Functions;
-static struct TTS tts_options;
+static TTS tts;
 
 #ifdef _WIN32
 #define _strcpy(dest, destSize, src) strcpy_s(dest, destSize, src)
@@ -38,7 +41,7 @@ static struct TTS tts_options;
 #define _strcpy(dest, destSize, src) { strncpy(dest, src, destSize-1); (dest)[destSize-1] = '\0'; }
 #endif
 
-#define PLUGIN_API_VERSION 19
+#define PLUGIN_API_VERSION 20
 
 #define PATH_BUFSIZE 512
 #define COMMAND_BUFSIZE 128
@@ -49,8 +52,7 @@ static struct TTS tts_options;
 #define MESSAGE_BUFSIZE 1024
 
 static char* pluginID = NULL;
-ISpVoice * pVoice = NULL;
-HRESULT hr = NULL;
+
 
 #ifdef _WIN32
 /* Helper function to convert wchar_T to Utf-8 encoded strings on Windows */
@@ -65,20 +67,6 @@ static int wcharToUtf8(const wchar_t* str, char** result) {
 }
 #endif
 
-int speak(const char* message){
-		
-		int wchars_num =  MultiByteToWideChar( CP_ACP , 0 , message , -1, NULL , 0 );
-	
-		wchar_t* u_message = new wchar_t[wchars_num];
-		ZeroMemory(u_message, wchars_num);
-	
-		MultiByteToWideChar(CP_ACP , MB_COMPOSITE , message , -1 , u_message , wchars_num);
-
-		hr = pVoice->Speak(u_message, SPF_ASYNC, NULL);
-
-		return 0;
-}
-
 std::vector<url_cut> url_extract(const string& message){
 	vector<url_cut> ret;
 
@@ -90,8 +78,8 @@ std::vector<url_cut> url_extract(const string& message){
 
 	while(start != string::npos && end != string::npos){
 		entry.start = start;
-		entry.end = end + 6; //+6 to get to the end of the /URL segment
-		entry.url = message.substr(entry.start, entry.end-entry.start);
+		entry.end = end + 6; //+6 to get to the end of the [/URL] segment
+		entry.url = message.substr(entry.start, entry.end - entry.start);
 
 		ret.push_back(entry);
 		
@@ -121,6 +109,27 @@ string return_domain(const string& long_url){
 	return ret;
 }
 
+string remove_long_urls(const string& message){
+	
+	vector<url_cut> url_index;
+	string short_url_message;
+	string cut_url;
+	string::size_type skip = 0;
+
+		url_index = url_extract(message);	//check if contains a URL, returns an empy vector if not found or the indexes of the URL
+		for (int i = 0; i < url_index.size(); i++){
+			cut_url = "link from domain " + return_domain(url_index[i].url);
+			short_url_message.append(message, skip, url_index[i].start - skip);
+			short_url_message += cut_url;
+			skip = url_index[i].end;
+		}
+		short_url_message.append(message, skip, message.length());
+		
+		return short_url_message;
+	
+
+}
+
 /*********************************** Required functions ************************************/
 /*
  * If any of these required functions is not implemented, TS3 will refuse to load the plugin
@@ -135,7 +144,7 @@ const char* ts3plugin_name() {
 
 /* Plugin version */
 const char* ts3plugin_version() {
-    return "1.0";
+    return "1.1";
 }
 
 /* Plugin API version. Must be the same as the clients API major version, else the plugin fails to load. */
@@ -168,17 +177,9 @@ int ts3plugin_init() {
     /* Your plugin init code here */
     printf("PLUGIN: init\n");
 
-    if (FAILED(CoInitialize(NULL)))
-        return 1;
-
-    hr = CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, IID_ISpVoice, (void **)&pVoice);
-    if(!SUCCEEDED(hr))
+	if (tts.initialise()){
 		return 1;
-
-	tts_options.mute = 0;			//setup defaults in the teamspeak strut
-	tts_options.talkback = 0;
-	tts_options.maxlength = 100;
-
+	}
 
     return 0;  /* 0 = success, 1 = failure, -2 = failure but client will not show a "failed to load" warning */
 	/* -2 is a very special case and should only be used if a plugin displays a dialog (e.g. overlay) asking the user to disable
@@ -191,10 +192,7 @@ void ts3plugin_shutdown() {
     /* Your plugin cleanup code here */
     printf("PLUGIN: shutdown\n");
 
-	pVoice->Release();
-    pVoice = NULL;
-
-    CoUninitialize();
+	tts.shutdown();
 	
 	/*
 	 * Note:
@@ -253,25 +251,18 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 	string str_message(message);
 	string speech;
 	string cut_url;
+	queue<string> queue;
 	int skip=0;
 
 	ts3Functions.getClientID(serverConnectionHandlerID, &myId);
 
-	if((fromID == myId) && !tts_options.talkback){ //if talkback is disabled don't repeat own message
+	if((fromID == myId) && !tts.get_talkback()){ //if talkback is disabled don't repeat own message
 		return 0;
 	}
-	if(!tts_options.mute){							//Only speak if unmuted
-		url_index = url_extract(str_message);			//check if contains a URL, returns an empy vector if not found or the indexes of the URL
 
-		for(int i = 0; i < url_index.size(); i++){
-			
-			cut_url = "link from domain " + return_domain(url_index[i].url);
-			speech.append(message+skip, url_index[i].start-skip);
-			speech += cut_url;
-			skip = url_index[i].end;
-		}
-		speech.append(message+skip);
-		speak(speech.substr(0, tts_options.maxlength).c_str());
+	if(!tts.get_mute()){							//Only speak if unmuted
+		
+		tts.pushmessage(remove_long_urls(message));
 	}
 
     return 0;  /* 0 = handle normally, 1 = client will ignore the text message */
@@ -281,7 +272,7 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
 	char buf[COMMAND_BUFSIZE];
 	char *s, *param1 = NULL, *param2 = NULL;
 	int i = 0;
-	enum { CMD_NONE = 0, CMD_TALKBACK, CMD_MUTE, CMD_PITCH, CMD_SPEED, CMD_MAXLENGTH, CMD_STOP} cmd = CMD_NONE;
+	enum { CMD_NONE = 0, CMD_TALKBACK, CMD_MUTE, CMD_PITCH, CMD_SPEED, CMD_MAXLENGTH, CMD_STOP, CMD_QUEUE} cmd = CMD_NONE;
 #ifdef _WIN32
 	char* context = NULL;
 #endif
@@ -293,20 +284,29 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
 	s = strtok(buf, " ");
 #endif
 	while(s != NULL) {
-		if(i == 0) {
-			if(!strcmp(s, "talkback")) {			//used for client to read own message
+		if (i == 0) {
+			if (!strcmp(s, "talkback")) {			//used for client to read own message
 				cmd = CMD_TALKBACK;
-			} else if(!strcmp(s, "mute")) {			//used to mute all output
+			}
+			else if (!strcmp(s, "mute")) {			//used to mute all output
 				cmd = CMD_MUTE;
-			} else if(!strcmp(s, "pitch")) {		//Unimplemented
+			}
+			else if (!strcmp(s, "pitch")) {		//Unimplemented
 				cmd = CMD_PITCH;
-			} else if(!strcmp(s, "speed")) {		//Unimplemented
+			}
+			else if (!strcmp(s, "speed")) {		//Unimplemented
 				cmd = CMD_SPEED;
-			}  else if(!strcmp(s, "maxlength")){	//Used to set the maximun number of characters to read from the message
+			}
+			else if (!strcmp(s, "maxlength")){	//Used to set the maximun number of characters to read from the message
 				cmd = CMD_MAXLENGTH;
-			}	else if(!strcmp(s, "stop")){		//Unimplemented
+			}
+			else if (!strcmp(s, "stop")){		//Unimplemented
 				cmd = CMD_STOP;
 			}
+			else if (!strcmp(s, "maxqueue")){		//Max number of messages to remember
+				cmd = CMD_QUEUE;
+			}
+		
 		} else if(i == 1) {
 			param1 = s;
 		} else {
@@ -322,34 +322,17 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
 
 	switch(cmd) {
 		case CMD_TALKBACK: {
-			tts_options.talkback = !tts_options.talkback;
-			if (tts_options.talkback)
-				ts3Functions.printMessageToCurrentTab("Talkback is ENABLED");
-			else
-				ts3Functions.printMessageToCurrentTab("Talkback is DISABLED");
+			ts3Functions.printMessageToCurrentTab(tts.toggle_talkback().c_str());
 			break;
-						   }
-		case CMD_MUTE:{
-			tts_options.mute = !tts_options.mute;
-			if (tts_options.mute)
-				ts3Functions.printMessageToCurrentTab("Mute is ENABLED");
-			else
-				ts3Functions.printMessageToCurrentTab("Mute is DISABLED");
+		} case CMD_MUTE:{
+			ts3Functions.printMessageToCurrentTab(tts.toggle_mute().c_str());
 			break;
-					  }
-		
-		case CMD_MAXLENGTH:{
-			tts_options.maxlength = atoi(param1);
-
-			string out = "Maxlength is: ";
-			out += param1;
-
-			ts3Functions.printMessageToCurrentTab(out.c_str());
+		} case CMD_MAXLENGTH:{
+			ts3Functions.printMessageToCurrentTab(tts.set_maxlength( atoi(param1) ).c_str() );
 			break;
-						   }
-		case CMD_STOP:{
-			break;
-						   }
+		} case CMD_QUEUE:{
+			ts3Functions.printMessageToCurrentTab(tts.set_maxqueue(atoi(param1)).c_str());
+		}
 	
 	}
 	return 0;
