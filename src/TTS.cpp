@@ -59,19 +59,19 @@ int TTS::shutdown(){
 
 string TTS::set_maxlength(int newlength){
 	
-	if (newlength > 0 && newlength < TS3_MAX_SIZE_TEXTMESSAGE){
+	if (newlength > 0 && newlength < (int) TS3_MAX_SIZE_TEXTMESSAGE){
 		maxlength = newlength;
 	}else{
-		throw "Out of bound max length - must be between 0 and" + TS3_MAX_SIZE_TEXTMESSAGE;
+		throw "Out of bound max length - must be between 0 and " + to_string(TS3_MAX_SIZE_TEXTMESSAGE);
 	}
-	return "Max Length = " + maxlength;
+	return "Max Length = " + to_string(maxlength);
 
 }
 
 string TTS::set_maxqueue(int newqueue){
 	maxqueue = newqueue;
 	
-	return "New queue size = " + maxqueue;
+	return "New queue size = " + to_string(maxqueue);
 }
 
 string TTS::toggle_mute(){
