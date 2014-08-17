@@ -143,7 +143,7 @@ int TTS::speak_thread(){
 				break;
 			}
 
-			speech = widechar_convert(m_queue.front());
+			speech = widechar_convert((m_queue.front()).substr(0, maxlength));
 			hr = pVoice->Speak(speech, SPF_DEFAULT, NULL);
 
 			accessing.lock();
