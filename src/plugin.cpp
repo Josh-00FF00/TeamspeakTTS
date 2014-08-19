@@ -26,6 +26,7 @@
 #include <vector>
 #include <queue>
 #include <thread>
+#include <algorithm>
 
 #include <iostream>
 
@@ -126,8 +127,25 @@ string remove_long_urls(const string& message){
 		short_url_message.append(message, skip, message.length());
 		
 		return short_url_message;
-	
+}
 
+bool is_valid_char(char c){
+	return find(tts.accepted_chars.begin(), tts.accepted_chars.end(), c) == tts.accepted_chars.end(); //checks that the char is in the valid list in the tts object
+}
+
+string remove_invalid_chars(const string& message){
+	string result;
+	
+	replace_copy_if(message.begin(), message.end(), back_inserter(result), is_valid_char, ' ');
+	return result;
+}
+
+string parse_textmessage(const string& textmessage){
+	string parsed_text;
+
+	parsed_text = remove_invalid_chars(remove_long_urls(textmessage));
+	
+	return parsed_text;
 }
 
 /*********************************** Required functions ************************************/
@@ -144,7 +162,7 @@ const char* ts3plugin_name() {
 
 /* Plugin version */
 const char* ts3plugin_version() {
-    return "1.11";
+    return "1.2";
 }
 
 /* Plugin API version. Must be the same as the clients API major version, else the plugin fails to load. */
@@ -262,7 +280,7 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 
 	if(!tts.get_mute()){							//Only speak if unmuted
 		
-		tts.pushmessage(remove_long_urls(message));
+		tts.pushmessage(parse_textmessage(str_message));
 	}
 
     return 0;  /* 0 = handle normally, 1 = client will ignore the text message */

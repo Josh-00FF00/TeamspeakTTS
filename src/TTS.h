@@ -29,6 +29,8 @@ public:
 	std::string toggle_mute();
 	bool get_mute() const { return mute; };
 
+	std::string accepted_chars;
+
 private:
 	bool talkback;
 	bool mute;
