@@ -18,7 +18,7 @@ maxlength(100),
 maxqueue(5), 
 thread_running(false), 
 thread_quit(true), 
-accepted_chars("abcdefghijklmnopqrstuvwxyz123456789!?\"£$%&*#'@;:/\\()[]") {}
+accepted_chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789!?\"£$%&*#'@;:/\\()[]") {}
 
 int TTS::initialise(){
 

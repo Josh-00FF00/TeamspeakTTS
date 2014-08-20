@@ -31,6 +31,7 @@ public:
 
 	std::string accepted_chars;
 
+
 private:
 	bool talkback;
 	bool mute;
