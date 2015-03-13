@@ -5,8 +5,11 @@
 #include<queue>
 #include<thread>
 #include<mutex>
+#include<future>
 #include <condition_variable>
 #include <sapi.h>
+
+#define TIMEOUT 5000 //time to wait for thread to end in milliseconds
 
 class TTS{
 public:
@@ -37,15 +40,16 @@ private:
 	bool mute;
 
 	bool thread_running;
-	bool thread_quit;
 
 	int maxlength;
 	int maxqueue;
 	std::queue<std::string> m_queue;
 
-	std::mutex lock;
+	std::mutex empty;
 	std::mutex accessing;
 	std::condition_variable not_empty;
+	std::future<int> thread_ended;
+
 	ISpVoice * pVoice = NULL;
 	HRESULT hr = NULL;
 

@@ -17,7 +17,6 @@ talkback(FALSE),
 maxlength(100), 
 maxqueue(5), 
 thread_running(false), 
-thread_quit(true), 
 accepted_chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789!?\"£$%&*#'@;:/\\()[]") {}
 
 int TTS::initialise(){
@@ -30,7 +29,9 @@ int TTS::initialise(){
 		return 1;
 
 	thread_running = true;
-	thread t1(&TTS::speak_thread, this);
+	std::packaged_task<int()> task([this]() -> int {return TTS::speak_thread();});  //Fancy new packaged future stuff here to replace the old method of checking whether my thread has ended by  bool and hope no races happen, somewhat less of a hack.
+	thread_ended = task.get_future();
+	thread t1(std::move(task));
 	
 	t1.detach();
 
@@ -39,28 +40,28 @@ int TTS::initialise(){
 }
 
 int TTS::shutdown(){
-	thread_running = false;
-	not_empty.notify_one();
-	
-	SPVOICESTATUS status;
 	ULONG skipped;
+	std::future_status thread_status;
 
-	pVoice->Skip(L"SENTENCE", 99, &skipped);	//Skip 99 sentences
-	pVoice->GetStatus(&status, NULL);
-
-	while (status.dwRunningState == SPRS_IS_SPEAKING || !thread_quit){ 
-		Sleep(50);
-		pVoice->GetStatus(&status, NULL);
-	}
+	pVoice->Skip(L"SENTENCE", maxlength, &skipped);	//Skip maxlength sentences, this should end the tts speaking
+	pVoice->WaitUntilDone(TIMEOUT);
 	
+	thread_running = false;							//start to shutdown thread
+	not_empty.notify_one();
+
+	thread_status = thread_ended.wait_for(std::chrono::milliseconds(TIMEOUT));	//wait for thread to end or until TIMEOUT, whichever is first
 
 	pVoice->Release();
 	pVoice = NULL;
 
 	CoUninitialize();
 
-	
-	return 0;
+	if (thread_status != std::future_status::ready){
+		return 1;										//This only happens when the thread hasn't exited properly, NOTE: Add actual error to throw
+	}
+	else{
+		return thread_ended.get();
+	}
 }
 
 string TTS::set_maxlength(int newlength){
@@ -135,34 +136,32 @@ wchar_t* TTS::widechar_convert(string message){
 }
 
 int TTS::speak_thread(){
-	thread_quit = false;
-	std::unique_lock<std::mutex> lk(lock);
+	std::unique_lock<std::mutex> empty_lk(empty);
 	wchar_t* speech;
 	
 	while (thread_running){
 		
-		not_empty.wait(lk, [this](){ return m_queue.size() > 0 || !thread_running; });
+		not_empty.wait(empty_lk, [this](){ return m_queue.size() > 0 || !thread_running; });
 
 		for (int i = 0; i < m_queue.size(); i++){
 
-			if (i >= maxlength-1){
+			if (i >= maxqueue-1){
 				break;
 			}
 
 			speech = widechar_convert((m_queue.front()).substr(0, maxlength));
 			hr = pVoice->Speak(speech, SPF_DEFAULT, NULL);
+			free(speech);
 
 			accessing.lock();
 			m_queue.pop();
 			accessing.unlock();
 
 			if (!thread_running){
-				thread_quit = true;
-				return 0;
+				break;
 			}
 		}
 
 	}
-	thread_quit = 1;
 	return 0;
 }
