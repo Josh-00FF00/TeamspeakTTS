@@ -25,20 +25,15 @@ TTS::TTS() :
 thread_running(false), 
 accepted_chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789!?\"£$%&*#'@;:/\\()[].,-=+<>") {
 
-	//this.ts3funcs = ts3funcs;
-
-
 	/* Maps the teamspeak commands to the TTS functions that match them. arguments are expected
 	 * as a std::list of strings
 	*/ 
-
 	toggles = {
 		{ "mute", false },
 	    { "talkback", false },
 	};
 	using namespace std::placeholders; // for _1, _2, _3...
 	commands = { // placehoders are the list of string arguments passed
-
 		{"toggle", std::bind(&TTS::toggle, this, _1)},
 		{"set", std::bind(&TTS::set, this, _1) }
 	};
