@@ -10,11 +10,11 @@ This is a _very_ simple TTS engine I've added for windows only. It should probab
 ## Commands
 Currently there are a few options that are accessed by typing "/tts" into chat.
 
-/tts toggle mute (mutes tts from chat)
-/tts toggle talkback (allows you to hear your own chat messages)
+* /tts toggle mute (mutes tts from chat)
+* /tts toggle talkback (allows you to hear your own chat messages)
 
 
-/tts set maxlength 100 (Sets the maxlength of a message that will be read)
-/tts set maxqueue 5 (Sets the number of messages saved to be read out, oldest removed first)
+* /tts set maxlength 100 (Sets the maxlength of a message that will be read)
+* /tts set maxqueue 5 (Sets the number of messages saved to be read out, oldest removed first)
 
 That's it!
