@@ -91,8 +91,9 @@
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
     <SourcePath>C:\Users\Joshua\source\repos\TeamspeakTTS\TeamspeakTTS\src;$(SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\interm\</IntDir>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(Configuration)\interm\$(PlatformTarget)</IntDir>
+    <TargetName>$(ProjectName)_$(PlatformTarget)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -100,8 +101,9 @@
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
     <SourcePath>C:\Users\Joshua\source\repos\TeamspeakTTS\TeamspeakTTS\src;$(SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\interm\</IntDir>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(Configuration)\interm\$(PlatformTarget)</IntDir>
+    <TargetName>$(ProjectName)_$(PlatformTarget)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -109,8 +111,9 @@
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
     <SourcePath>C:\Users\Joshua\source\repos\TeamspeakTTS\TeamspeakTTS\src;$(SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\interm\</IntDir>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(Configuration)\interm\$(PlatformTarget)</IntDir>
+    <TargetName>$(ProjectName)_$(PlatformTarget)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -118,8 +121,9 @@
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
     <SourcePath>C:\Users\Joshua\source\repos\TeamspeakTTS\TeamspeakTTS\src;$(SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(Configuration)\$(AppxManifestMetadataClTargetArchDir)\interm\</IntDir>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(Configuration)\interm\$(PlatformTarget)</IntDir>
+    <TargetName>$(ProjectName)_$(PlatformTarget)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
