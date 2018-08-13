@@ -14,7 +14,7 @@
 #include <iostream>
 
 
-#ifdef WIN32
+#ifdef _WIN32
 #define PLUGINS_EXPORTDLL __declspec(dllexport)
 #else
 #define PLUGINS_EXPORTDLL __attribute__ ((visibility("default")))

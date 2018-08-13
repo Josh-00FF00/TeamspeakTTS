@@ -13,13 +13,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "public_errors.h"
-#include "public_errors_rare.h"
-#include "public_definitions.h"
-#include "public_rare_definitions.h"
-#include "ts3_functions.h"
-#include "plugin.h"
-#include "TTS.h"
+#include "public_errors.hpp"
+#include "public_errors_rare.hpp"
+#include "public_definitions.hpp"
+#include "public_rare_definitions.hpp"
+#include "ts3_functions.hpp"
+#include "plugin.hpp"
+#include "TTS.hpp"
 
 #include <sapi.h>
 #include <string>
@@ -33,7 +33,7 @@
 using namespace std;
 
 static struct TS3Functions ts3Functions;
-static TTS tts;
+static class TTS tts;
 
 #ifdef _WIN32
 #define _strcpy(dest, destSize, src) strcpy_s(dest, destSize, src)
@@ -42,7 +42,7 @@ static TTS tts;
 #define _strcpy(dest, destSize, src) { strncpy(dest, src, destSize-1); (dest)[destSize-1] = '\0'; }
 #endif
 
-#define PLUGIN_API_VERSION 20
+#define PLUGIN_API_VERSION 22
 
 #define PATH_BUFSIZE 512
 #define COMMAND_BUFSIZE 128
@@ -118,7 +118,7 @@ string remove_long_urls(const string& message){
 	string::size_type skip = 0;
 
 		url_index = url_extract(message);	//check if contains a URL, returns an empy vector if not found or the indexes of the URL
-		for (int i = 0; i < url_index.size(); i++){
+		for (unsigned int i = 0; i < url_index.size(); i++){
 			cut_url = "link from domain " + return_domain(url_index[i].url);
 			short_url_message.append(message, skip, url_index[i].start - skip);
 			short_url_message += cut_url;
@@ -184,6 +184,7 @@ const char* ts3plugin_description() {
 
 /* Set TeamSpeak 3 callback functions */
 void ts3plugin_setFunctionPointers(const struct TS3Functions funcs) {
+	tts.setFunctionPointers(funcs);
     ts3Functions = funcs;
 }
 
@@ -195,7 +196,7 @@ int ts3plugin_init() {
     /* Your plugin init code here */
     printf("PLUGIN: init\n");
 
-	if (tts.initialise()){
+	if (tts.initialise()){ // if failed
 		return 1;
 	}
 
@@ -288,9 +289,10 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 
 int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* command){
 	char buf[COMMAND_BUFSIZE];
-	char *s, *param1 = NULL, *param2 = NULL;
+	char *s;
 	int i = 0;
-	enum { CMD_NONE = 0, CMD_TALKBACK, CMD_MUTE, CMD_PITCH, CMD_SPEED, CMD_MAXLENGTH, CMD_STOP, CMD_QUEUE} cmd = CMD_NONE;
+	list<string> params;
+	string cmd;
 #ifdef _WIN32
 	char* context = NULL;
 #endif
@@ -301,34 +303,14 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
 #else
 	s = strtok(buf, " ");
 #endif
-	while(s != NULL) {
+
+
+	while (s != NULL) {
 		if (i == 0) {
-			if (!strcmp(s, "talkback")) {			//used for client to read own message
-				cmd = CMD_TALKBACK;
-			}
-			else if (!strcmp(s, "mute")) {			//used to mute all output
-				cmd = CMD_MUTE;
-			}
-			else if (!strcmp(s, "pitch")) {		//Unimplemented
-				cmd = CMD_PITCH;
-			}
-			else if (!strcmp(s, "speed")) {		//Unimplemented
-				cmd = CMD_SPEED;
-			}
-			else if (!strcmp(s, "maxlength")){	//Used to set the maximun number of characters to read from the message
-				cmd = CMD_MAXLENGTH;
-			}
-			else if (!strcmp(s, "stop")){		//Unimplemented
-				cmd = CMD_STOP;
-			}
-			else if (!strcmp(s, "maxqueue")){		//Max number of messages to remember
-				cmd = CMD_QUEUE;
-			}
-		
-		} else if(i == 1) {
-			param1 = s;
-		} else {
-			param2 = s;
+			cmd = string(s);
+		}
+		else {
+			params.push_back(string(s));
 		}
 #ifdef _WIN32
 		s = strtok_s(NULL, " ", &context);
@@ -337,22 +319,13 @@ int ts3plugin_processCommand(uint64 serverConnectionHandlerID, const char* comma
 #endif
 		i++;
 	}
-
-	switch(cmd) {
-		case CMD_TALKBACK: {
-			ts3Functions.printMessageToCurrentTab(tts.toggle_talkback().c_str());
-			break;
-		} case CMD_MUTE:{
-			ts3Functions.printMessageToCurrentTab(tts.toggle_mute().c_str());
-			break;
-		} case CMD_MAXLENGTH:{
-			ts3Functions.printMessageToCurrentTab(tts.set_maxlength( atoi(param1) ).c_str() );
-			break;
-		} case CMD_QUEUE:{
-			ts3Functions.printMessageToCurrentTab(tts.set_maxqueue(atoi(param1)).c_str());
-		}
-	
+	if (tts.commands.count(cmd) > 0) {
+		tts.commands[cmd](params); //calls the function specified first e.g /tts toggle mute
+	}else {
+		ts3Functions.printMessageToCurrentTab("Cannot find command");
 	}
+	
+	
 	return 0;
 	}
 

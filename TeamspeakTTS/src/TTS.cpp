@@ -1,10 +1,13 @@
-#include "public_definitions.h"
-#include "ts3_functions.h"
-#include "plugin.h"
-#include "TTS.h"
+#include "public_definitions.hpp"
+#include "ts3_functions.hpp"
+#include "plugin.hpp"
+#include "TTS.hpp"
 #include <Windows.h>
 #include <string>
 #include <queue>
+#include <map>
+#include <list>
+#include <functional>
 #include <thread>
 #include <sapi.h>
 
@@ -12,12 +15,39 @@ using namespace std;
 #define FALSE 0
 #define TRUE 1
 
-TTS::TTS() : mute(FALSE), 
-talkback(FALSE), 
-maxlength(100), 
-maxqueue(5), 
+
+inline const char * const BoolToString(bool b)
+{
+	return b ? "true" : "false";
+}
+
+TTS::TTS() :
 thread_running(false), 
-accepted_chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789!?\"£$%&*#'@;:/\\()[]") {}
+accepted_chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789!?\"£$%&*#'@;:/\\()[].,-=+<>") {
+
+	//this.ts3funcs = ts3funcs;
+
+
+	/* Maps the teamspeak commands to the TTS functions that match them. arguments are expected
+	 * as a std::list of strings
+	*/ 
+
+	toggles = {
+		{ "mute", false },
+	    { "talkback", false },
+	};
+	using namespace std::placeholders; // for _1, _2, _3...
+	commands = { // placehoders are the list of string arguments passed
+
+		{"toggle", std::bind(&TTS::toggle, this, _1)},
+		{"set", std::bind(&TTS::set, this, _1) }
+	};
+
+	values = {
+		{"maxlength", 5000},
+		{"maxqueue", 5}
+	};
+}
 
 int TTS::initialise(){
 
@@ -39,10 +69,14 @@ int TTS::initialise(){
 
 }
 
+void TTS::setFunctionPointers(TS3Functions funcs) {
+	ts3funcs = funcs;
+}
+
 int TTS::shutdown(){
 	ULONG skipped;
 	std::future_status thread_status;
-
+	int maxlength = get_maxlength();
 	pVoice->Skip(L"SENTENCE", maxlength, &skipped);	//Skip maxlength sentences, this should end the tts speaking
 	pVoice->WaitUntilDone(TIMEOUT);
 	
@@ -64,44 +98,64 @@ int TTS::shutdown(){
 	}
 }
 
-string TTS::set_maxlength(int newlength){
-	
-	if (newlength > 0 && newlength < (int) TS3_MAX_SIZE_TEXTMESSAGE){
-		maxlength = newlength;
-	}else{
-		throw "Out of bound max length - must be between 0 and " + to_string(TS3_MAX_SIZE_TEXTMESSAGE);
-	}
-	return "Max Length = " + to_string(maxlength);
 
+int TTS::toggle(std::list<std::string> arguments) {
+	string msg;
+	if (arguments.size() != 1) {
+		ts3funcs.printMessageToCurrentTab("Toggle requires 1 argument!");
+		return 0;
+	}
+
+	if (toggles.count(arguments.front()) > 0) { // if the toggle exists in the map
+		toggles[arguments.front()] = !toggles[arguments.front()];
+		msg = "Toggled: ";
+		msg.append(arguments.front());
+		msg.append(" to ");
+		msg.append(BoolToString(toggles[arguments.front()]));
+	}
+	else {
+		msg = "Cannot find toggle: ";
+		msg.append(arguments.front());
+	}
+
+	ts3funcs.printMessageToCurrentTab(msg.c_str());
+
+	return 0;
 }
 
-string TTS::set_maxqueue(int newqueue){
-	maxqueue = newqueue;
-	
-	return "New queue size = " + to_string(maxqueue);
-}
-
-string TTS::toggle_mute(){
-
-	mute = !mute;
-	
-	if (mute){
-		return "Mute is ENABLED";
-	}else{
-		return "Mute is DISABLED";
-	}
-}
-
-string TTS::toggle_talkback(){
-	talkback = !talkback;
-
-	if (talkback){
-		return "Talkback is ENABLED";
-	}
-	else{
-		return "Talkback is DISABLED";
+int TTS::set(std::list<std::string> arguments) {
+	if (arguments.size() != 2) {
+		ts3funcs.printMessageToCurrentTab("Set requires 2 arguments!");
+		return 0;
 	}
 
+	string fstArg = arguments.front();
+	string sndArg = *next(arguments.begin());
+
+	if (values.count(fstArg) > 0) { // if the value exists in the map
+		string msg;
+		try {
+			int value = stoi(sndArg); //gets the second argument and converts to int
+			values[fstArg] = value;
+
+			msg = "Set: ";
+			msg.append(fstArg);
+			msg.append(" to ");
+			msg.append(sndArg);
+			ts3funcs.printMessageToCurrentTab(msg.c_str());
+		}
+		catch (const std::invalid_argument) {
+			msg = "Cannot convert: ";
+			msg.append(sndArg);
+			ts3funcs.printMessageToCurrentTab(msg.c_str());
+		}
+	}
+	else {
+		string msg = "Cannot find value: ";
+		ts3funcs.printMessageToCurrentTab(msg.append(fstArg).c_str());
+	}
+
+	return 0;
 }
 
 std::string::size_type TTS::pushmessage(string message){
@@ -109,10 +163,10 @@ std::string::size_type TTS::pushmessage(string message){
 	RETURNS new queue size*/
 
 	m_queue.push(message);
-	
+	unsigned int maxqueue = get_maxqueue();
 	if (m_queue.size() > maxqueue){
 		accessing.lock();
-		for (int i = 0; i < (m_queue.size() - maxqueue); i++){
+		for (unsigned int i = 0; i < (m_queue.size() - maxqueue); i++){
 			m_queue.pop();
 		}
 		accessing.unlock();
@@ -142,8 +196,9 @@ int TTS::speak_thread(){
 	while (thread_running){
 		
 		not_empty.wait(empty_lk, [this](){ return m_queue.size() > 0 || !thread_running; });
-
-		for (int i = 0; i < m_queue.size(); i++){
+		unsigned int maxqueue = get_maxqueue();
+		int maxlength = get_maxlength();
+		for (unsigned int i = 0; i < m_queue.size(); i++){
 
 			if (i >= maxqueue-1){
 				break;

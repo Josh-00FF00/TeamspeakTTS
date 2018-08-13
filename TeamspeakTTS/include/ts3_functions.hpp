@@ -5,9 +5,9 @@
 extern "C" {
 #endif
 
-#include "clientlib_publicdefinitions.h"
-#include "public_definitions.h"
-#include "plugin_definitions.h"
+#include "clientlib_publicdefinitions.hpp"
+#include "public_definitions.hpp"
+#include "plugin_definitions.hpp"
 
 /* Functions exported to plugin from main binary */
 struct TS3Functions {
